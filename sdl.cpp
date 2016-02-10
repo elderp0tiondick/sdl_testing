@@ -161,7 +161,7 @@ class Player
 	  static const int PLAYER_W = 50;
 	  static const int PLAYER_H = 100;
 	  
-	  static const int PLAYER_V = 10;
+	  static const int PLAYER_V = 1;
 	  
 	  //init
 	  Player();
@@ -253,7 +253,6 @@ int main()
 	//game loop
 	while (!quit)
 	{
-		printf("tester");
 		//event loop
 		while (SDL_PollEvent(&e))
 		{
