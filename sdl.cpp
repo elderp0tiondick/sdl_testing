@@ -1,16 +1,30 @@
 #include <SDL2/SDL.h>
+#include <execinfo.h>
+#include <signal.h>
 #include "SDL/SDL_image.h"
 #include <stdio.h>
 #include <string>
+#include <stdlib.h>
+#include <unistd.h>
+#include <iostream>
+#include <array>
 
 //g++ sdl.cpp -w -lSDL2 -lSDL2_image -o sdl
+void handler(int signal)
+{
+	void *array[10];
+	size_t size;
+	
+	size = backtrace(array, 10);
+	
+	fprintf(stderr, "[ERROR] signal %d:\n", signal);
+	backtrace_symbols_fd(array, size, STDERR_FILENO);
+	exit(1);
+}
 
 //window dimensions
 const int SCREEN_W = 1920;
 const int SCREEN_H = 1080;
-
-const int PLAYER_W = 50;
-const int PLAYER_H = 100;
 
 enum keyPressSurfaces
 {
@@ -35,7 +49,6 @@ SDL_Renderer* rend();
 //window surface
 SDL_Surface* screenSurface = NULL;
 SDL_Surface* loadImg(std::string path);
-bool loadAss();
 //keypress images
 SDL_Surface* wKeyPressSurfaces[ KB_TOTAL ];
 //current surf
@@ -112,50 +125,6 @@ SDL_Surface* loadImg(std::string path) //HOW TO OPTIMISE W/O SEGFAULT?!
 	return loadedIMG;
 }
 
-bool loadAss() //dumb function remove/redo
-{
-	bool complete = true;
-
-	wKeyPressSurfaces[ KB_DEFAULT ] = loadImg("placehold.bmp");
-	if (wKeyPressSurfaces[ KB_DEFAULT ] == NULL)
-	{
-		printf("failed to load\n");
-		complete = false;
-	}
-
-	wKeyPressSurfaces[ KB_UP ] = loadImg("placehold.bmp");
-	if (wKeyPressSurfaces[ KB_UP ] == NULL)
-	{
-		printf("failed to load\n");
-		complete = false;
-	}
-
-	wKeyPressSurfaces[ KB_DOWN ] = loadImg("placehold.bmp");
-	if (wKeyPressSurfaces[ KB_DOWN ] == NULL)
-	{
-		printf("failed to load\n");
-		complete = false;
-	}
-
-	wKeyPressSurfaces[ KB_LEFT ] = loadImg("placehold.bmp");
-	if (wKeyPressSurfaces[ KB_LEFT ] == NULL)
-	{
-		printf("failed to load\n");
-		complete = false;
-	}
-
-	wKeyPressSurfaces[ KB_RIGHT ] = loadImg("placehold.bmp");
-	if (wKeyPressSurfaces[ KB_RIGHT ] == NULL)
-	{
-		printf("failed to load\n");
-		complete = false;
-	}
-
-	printf("loaded\n");
-
-	return complete;
-}
-
 SDL_Renderer* rend(int x, int y, int w, int h, int r, int g, int b, int a, SDL_Renderer* renderer)
 {
 	SDL_Rect fillRect; // = (x, y, w, h);
@@ -186,22 +155,94 @@ void close()
 	SDL_Quit();
 }
 
+class Player
+{
+	public:
+	  static const int PLAYER_W = 50;
+	  static const int PLAYER_H = 100;
+	  
+	  static const int PLAYER_V = 10;
+	  
+	  //init
+	  Player();
+	  
+	  //events
+	  void handle(SDL_Event& e);
+	  
+	  //movement
+	  void move();
+	  
+	  //show 
+	  void render();
+	  
+	//private:
+	  int playerX, playerY;
+	  int playerXvel, playerYvel;
+  
+};
+
+Player::Player()
+{
+	playerX = 0;
+	playerY = 0;
+	playerXvel = 0;
+	playerYvel = 0;
+}
+
+void Player::handle(SDL_Event& e)
+{
+	if(e.type == SDL_KEYDOWN && e.key.repeat == 0)
+	{
+		switch(e.key.keysym.sym)
+		{
+		  case SDLK_UP: playerYvel -= PLAYER_V; break;
+		  case SDLK_DOWN: playerYvel += PLAYER_V; break;
+		  case SDLK_LEFT: playerXvel -= PLAYER_V; break;
+		  case SDLK_RIGHT: playerXvel += PLAYER_V; break;
+		}
+	}
+	else if (e.type == SDL_KEYUP && e.key.repeat == 0)
+	{
+		switch(e.key.keysym.sym)
+		{
+		  case SDLK_UP: playerYvel += PLAYER_V; break;
+		  case SDLK_DOWN: playerYvel -= PLAYER_V; break;
+		  case SDLK_LEFT: playerXvel += PLAYER_V; break;
+		  case SDLK_RIGHT: playerXvel -= PLAYER_V; break;
+		}
+	}
+}
+
+void Player::move()
+{
+	playerX += playerXvel;
+	
+	if (playerX < 0 || (playerX + PLAYER_W > SCREEN_W))
+	{
+		playerX -= playerXvel;
+	}
+	
+	playerY += playerYvel;
+	
+	if (playerY < 0 || (playerY + PLAYER_H > SCREEN_H))
+	{
+		playerY -= playerYvel;
+	}
+}
+
+void Player::render()
+{
+	SDL_RenderPresent(rend(playerX, playerY, PLAYER_W, PLAYER_H, 0, 0, 255, 255, renderer));
+}
 
 int main()
 {
-	printf("please master");
+	signal(SIGSEGV, handler);
 	bool quit = false;
 
 	SDL_Event e;
 	
-	int playerX = 0;
-	int playerY = 0;
-	
-	bool keysHeld[500] = {false};
-
-	//loadAss();
-	printf("please");
-	currentSurf = wKeyPressSurfaces[ KB_DEFAULT ];
+	Player player;
 
 	//init screen
 	if (!init())
@@ -216,90 +257,27 @@ int main()
 		//event loop
 		while (SDL_PollEvent(&e))
 		{
-			//printf("hey");
-			if (e.type == SDL_QUIT)
-			{
-				quit = true;
-			}
-		
-			if (e.type == SDL_KEYDOWN)
-			{
-				keysHeld[e.key.keysym.sym] = true;
-			}
-			if (e.type == SDL_KEYUP)
-			{
-				keysHeld[e.key.keysym.sym] = false;
-			}
-			
-			if (keysHeld[SDLK_ESCAPE])
-			{
-				quit = true;
-			}
-			if (keysHeld[SDLK_UP])
-			{
-				playerY -= 5;
-			}
-			if (keysHeld[SDLK_DOWN])
-			{
-				playerY += 5;
-			}
-			if (keysHeld[SDLK_LEFT])
-			{
-				playerX -= 5;
-			}
-			if (keysHeld[SDLK_RIGHT])
-			{
-				playerX += 5;
-			}
-// 				switch (e.key.keysym.sym)
-// 				{
-// 					case SDLK_UP:
-// 						//currentSurf = wKeyPressSurfaces[ KB_UP ];
-// 						playerY -= 5;
-// 						break;
-// 	
-// 					case SDLK_DOWN:
-// 						//currentSurf = wKeyPressSurfaces[ KB_DOWN ];
-// 						playerY += 5;
-// 						break;
-// 	
-// 					case SDLK_LEFT:
-// 						//currentSurf = wKeyPressSurfaces[ KB_LEFT ];
-// 						playerX -= 5;
-// 						break;
-// 	
-// 					case SDLK_RIGHT:
-// 						//currentSurf = wKeyPressSurfaces[ KB_RIGHT ];
-// 						playerX += 5;
-// 						break;
-// 	
-// 					default:
-// 						//currentSurf = wKeyPressSurfaces[ KB_DEFAULT ];
-// 						break;
-// 				}
-			//}
+ 			if (e.type == SDL_QUIT)
+ 			{
+ 				quit = true;
+ 			}
+ 			
+ 			player.handle(e);
 		}
 		
+		player.move();
+		
+		//clear screen		
 		SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
 		SDL_RenderClear(renderer);
-		//SDL_Rect fillRect = {SCREEN_W / 4, SCREEN_H / 4, SCREEN_W / 2, SCREEN_H / 2};
+		
+		player.render();
 
 		if (renderer == NULL)
 		{
 			printf("[ERROR] renderer is null%s\n", SDL_GetError());
 			return NULL;
 		}
-		
-		SDL_RenderPresent(rend(playerX, playerY, PLAYER_W, PLAYER_H, 0, 0, 255, 255, renderer));
-		
-		//if (0 > SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255))
-		//{
-		//	printf("[ERROR] setrenderdrawcolor failed : %s\n", SDL_GetError());
-		//	return NULL;
-		//}
-
-		//SDL_RenderFillRect(renderer, &fillRect);
-		//SDL_RenderPresent(renderer);
 	} //end of game loop
 	close();
 	return NULL;
