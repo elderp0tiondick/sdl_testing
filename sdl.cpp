@@ -1,5 +1,6 @@
 #include <SDL2/SDL.h>
 #include <SDL/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 #include <execinfo.h>
 #include <signal.h>
 #include <stdio.h>
@@ -9,9 +10,9 @@
 #include <iostream>
 #include <array>
 #include <sstream>
-
+using namespace std; //whatever dude
 //compiler args
-//g++ sdl.cpp -w -std=c++11 -lSDL2 -lSDL2_image -o sdl
+//g++ sdl.cpp -w -std=c++11 -lSDL2_TTF -lSDL2 -lSDL2_image -o sdl
 
 void handler(int signal)
 {
@@ -28,6 +29,15 @@ void handler(int signal)
 //window dimensions
 const int SCREEN_W = 1920;
 const int SCREEN_H = 1080;
+const float GRAV = 0.02;
+
+float gravity = 0;
+
+
+
+TTF_Font *freeFont = NULL;
+
+
 
 //function to initialise screen
 bool init();
@@ -36,7 +46,7 @@ bool init();
 void close();
 
 //collision
-bool checkCollision(SDL_Rect x, SDL_Rect y);
+bool checkCollision(SDL_Rect a, SDL_Rect b, SDL_Rect c);
 
 //rendering window
 SDL_Window* window = NULL;
@@ -48,6 +58,46 @@ SDL_Renderer* rend();
 SDL_Surface* screenSurface = NULL;
 //current surf
 SDL_Surface* currentSurf = NULL;
+
+class Time
+{
+	public:
+		unsigned int get(int unit);
+		Time();
+		~Time();
+		
+	private:
+		unsigned int time;
+		unsigned int past;
+	
+};
+
+Time::Time()
+{
+	time = 0;
+	past = 0;
+}
+
+Time::~Time()
+{
+	//fucking deconstruct time you cooked cunt
+	time = NULL;
+	past = NULL;
+}
+
+unsigned int Time::get(int unit)
+{
+	time = SDL_GetTicks();
+	
+	switch(unit)
+	{
+		case 0: return time; break; //0 = return in ms
+		case 1: return time/1000; break; //1 = return in s
+		//case 2: return past; break; //2 = return past
+	}
+}
+
+
 
 bool init()
 {
@@ -89,10 +139,132 @@ bool init()
 				{	//get window surface ??
 					screenSurface = SDL_GetWindowSurface(window);
 				}
+				
+				if (TTF_Init() == -1)
+				{
+					printf("SDL_TTF fail: %s\n", TTF_GetError());
+				}
 			}
 		}
 	}
 	return true;
+}
+
+class TextureWrap
+{
+	public:
+		TextureWrap();
+		
+		~TextureWrap();
+		
+		bool loadFromRenderedText(std::string textureText, SDL_Color textColor);
+		
+		void free();
+		
+		void setColor(Uint8 red, Uint8 green, Uint8 blue);
+		
+		void setBlendMode(SDL_BlendMode blending);
+		
+		void setAlpha(Uint8 alpha);
+		
+		void render(int x, int y);
+		
+		int tW, tH;
+		
+		bool loadFromFile(std::string path);
+		
+		SDL_Texture* texture;
+		
+		
+		
+};
+
+TextureWrap::TextureWrap()
+{
+	texture = NULL;
+	tW = 0;
+	tH = 0;
+}
+
+TextureWrap::~TextureWrap()
+{
+	free();
+}
+
+bool TextureWrap::loadFromFile(std::string path)
+{
+	free();
+	
+	SDL_Texture* newTexture = NULL;
+	
+	SDL_Surface* loadedSurface = IMG_Load(path.c_str());
+	
+	if (loadedSurface == NULL)
+	{
+		printf("img load fail %s\n", IMG_GetError());
+	}
+	else
+	{
+		SDL_SetColorKey(loadedSurface, SDL_TRUE, SDL_MapRGB(loadedSurface->format, 0, 0xFF, 0xFF));
+		newTexture = SDL_CreateTextureFromSurface(renderer, loadedSurface);
+		if (newTexture == NULL)
+		{
+			printf("tex fail: %s\n", SDL_GetError());
+		}
+		else
+		{
+			tW = loadedSurface->w;
+			tH = loadedSurface->h;
+		}
+		
+		SDL_FreeSurface(loadedSurface);
+	}
+	
+	texture = newTexture;
+	return texture != NULL;
+}
+
+void TextureWrap::free()
+{
+	if (texture != NULL)
+	{
+		SDL_DestroyTexture(texture);
+		texture = NULL;
+		tW = 0;
+		tH = 0;
+	}
+}
+
+void TextureWrap::render(int x, int y)
+{
+	SDL_Rect renderQuad = {x, y, tW, tH};
+	SDL_RenderCopy(renderer, texture, NULL, &renderQuad);
+}
+
+bool TextureWrap::loadFromRenderedText(std::string textureText, SDL_Color textColor)
+{
+	free();
+	
+	SDL_Surface* textSurface = TTF_RenderText_Solid(freeFont, textureText.c_str(), textColor);
+	if (textSurface == NULL)
+	{
+		printf("text fuck: %s\n", TTF_GetError());
+	}
+	else
+	{
+		texture = SDL_CreateTextureFromSurface(renderer, textSurface);
+		if (texture == NULL)
+		{
+			printf("tex rend fuckkk: %s\n", SDL_GetError());
+		}
+		else
+		{
+			tW = textSurface->w;
+			tH = textSurface->h;
+		}
+		SDL_FreeSurface(textSurface);
+	}
+	return texture != NULL;
 }
 
 SDL_Renderer* rend(int x, int y, int w, int h, int r, int g, int b, int a, SDL_Renderer* renderer)
@@ -116,6 +288,9 @@ void close()
 	SDL_FreeSurface(currentSurf);
 	currentSurf = NULL;
 	
+	TTF_CloseFont(freeFont);
+	freeFont = NULL;
+	
 	SDL_DestroyRenderer(renderer);
 	//destroy window and deallocate screensurf
 	SDL_DestroyWindow(window);
@@ -124,6 +299,7 @@ void close()
 
 	SDL_Quit();
 	IMG_Quit();
+	TTF_Quit();
 }
 
 class Player
@@ -141,7 +317,7 @@ class Player
 	  void handle(SDL_Event& e);
 	  
 	  //movement
-	  void move(SDL_Rect& wall);
+	  void move(SDL_Rect& wall, SDL_Rect& plat, Time worldTime, unsigned int oldTime);
 	  
 	  //show 
 	  void render();
@@ -152,7 +328,7 @@ class Player
 	  //x, y velocity
 	  float playerXvel, playerYvel;
 	  //player veloxity (magnitude)
-	  float playerV = 0.03;
+	  float playerV = 0.02;//ms-1
 	  //shape to define hitbox
 	  SDL_Rect hitbox;
 	  //text data
@@ -166,10 +342,10 @@ class Player
 
 Player::Player()
 {
-	playerX = 0;
-	playerY = 0;
-	playerXvel = 0;
-	playerYvel = 0;
+	playerX = 20;
+	playerY = 20;
+	playerXvel = 0; //ms-1
+	playerYvel = 0; //ms-1
 	hitbox.w = PLAYER_W;
 	hitbox.h = PLAYER_H;
 	isJumping = false;
@@ -203,7 +379,7 @@ void Player::handle(SDL_Event& e)
 	}
 }
 
-bool checkCollision(SDL_Rect a, SDL_Rect b)
+bool checkCollision(SDL_Rect a, SDL_Rect b, SDL_Rect c)
 {
 	if((a.y + a.h) <= b.y)
 	{
@@ -221,84 +397,95 @@ bool checkCollision(SDL_Rect a, SDL_Rect b)
 	{
 		return false;
 	}
+	if((a.y + a.h) <= c.y)
+	{
+		return false;
+	}
+	if(a.y >= (c.y + c.h))
+	{
+		return false;
+	}
+	if((a.x + a.w) <= c.x)
+	{
+		return false;
+	}
+	if(a.x >= (c.x + c.w))
+	{
+		return false;
+	}
 	return true;
 }
  
-void Player::move(SDL_Rect& wall)
+void Player::move(SDL_Rect& wall, SDL_Rect& plat, Time worldTime, unsigned int oldTime) //hack
 {
+	gravity = GRAV*((worldTime.get(0))/1000);
 	//move player by its x velocity
-	playerX += playerXvel;
-	hitbox.x = playerX;
-	
-	if (playerX < 0 || (playerX + PLAYER_W > SCREEN_W) || checkCollision(hitbox, wall))
+	if ((playerXvel < 2) || (playerXvel > -2))
 	{
-		//stop player on collision/offscreen
-		//printf("X HIT");
-		playerX -= playerXvel;
-		hitbox.x = playerX;
-	}
-	
-	//move player by its y velocity
-	playerY += playerYvel;
-	hitbox.y = playerY;
-	
-	playerY += 0.01; //gravity
-	hitbox.y = playerY;
-	
-	
-	if (playerY < 0 || (playerY + PLAYER_H > SCREEN_H) || checkCollision(hitbox, wall))
-	{
-		//stop player on collision//offscreen
-		//printf("Y HIT");
-		playerY -= playerYvel;
-		hitbox.y = playerY;
-		
-		
-		playerY -= 0.01; //cant gravity through the floor m9
-		hitbox.y = playerY;
-		//isJumping = false;
-	}
-	
-	//jump
-	if (isJumping == true)
-	{
-		printf("TITTER\n");
-		//set jumping velocity
-		playerYvel += playerV;
-		
-		//if max jump height not reached
-		if (dJump < PLAYER_J)
-		{
-			printf("RJAM");
-			//move player up by velocity
-			playerY -= playerYvel;
-			hitbox.y = playerY;
-			//change delta by jump velocity
-			dJump += playerYvel;
-			printf("%f\n", dJump);
-		}
-		//if max jump height reached
-		else
-		{
-			dJump = 0.0f; //reset delta
-			isJumping = false; //height reached, stop jumping
-			printf("%f\n", dJump);
-		}
-		//isJumping = false;
-// 		while (dJump < PLAYER_J)
-// 		{
-// 			playerY -= playerYvel;
-// 			hitbox.y = playerY;
-// 			dJump += playerYvel;
-// 		}
-// 		playerYvel -= playerV;
-// 		isJumping = false;
-// 		dJump = 0.0f;
+		playerX += playerXvel;
 	}
 	else
 	{
-		//playerY += 0.01; 
-		//hitbox.y = playerY; //what
+		playerX -= playerXvel;
+	}
+	
+	hitbox.x = playerX;
+	printf("playerX: %f\nplayerXvel: %f\n", playerX, playerXvel);
+	
+	if (playerX < 0 || (playerX + PLAYER_W > SCREEN_W) || checkCollision(hitbox, wall, plat))
+	{
+		//stop player on collision/offscreen
+		playerX -= playerXvel;
+		hitbox.x = playerX;
+		printf("ARE WE DETECTING COLLISION?!\n");
+	}
+
+	
+	if ((playerYvel < 2) || (playerYvel > -2))
+	{
+		playerY += gravity;
+		playerY += playerYvel;
+	}
+	else
+	{
+		playerY += gravity;
+		playerY -= playerYvel;
+	}
+	
+	
+	
+	hitbox.y = playerY;
+	printf("playerY: %f\nplayerYvel: %f\n", playerY, playerYvel);
+	
+	if (playerY < 0 || (playerY + PLAYER_H) > (SCREEN_H) || checkCollision(hitbox, wall, plat))
+	{
+		//stop player on collision//offscreen
+		playerY -= gravity;
+		playerY -= playerYvel;
+		
+		hitbox.y = playerY;
+		printf("ARE WE DETECTING 2222 COLLISION?!\n");
+	}
+	
+	if (isJumping == true)
+	{
+		if (dJump < 60)
+		{
+			dJump += 10 + gravity;
+			playerY -= 10 + gravity;
+			hitbox.y = playerY;
+		}
+		else 
+		{
+			dJump -= 10 + gravity;
+			playerY += 10 + gravity;
+			hitbox.y = playerY;
+		}
+	}
+	else
+	{
+		dJump = 0;
+		isJumping = false;
 	}
 }
 
@@ -308,20 +495,45 @@ void Player::render()
 	SDL_RenderPresent(rend(playerX, playerY, PLAYER_W, PLAYER_H, 0, 0, 255, 255, renderer));
 }
 
+
+
+
+
 int main()
 {
 	signal(SIGSEGV, handler);
 	bool quit = false;
+	
+	char buf[100];
+	getcwd(buf,sizeof(buf));
+	
 
 	SDL_Event e;
 	
 	Player player;
+	
+	TextureWrap textTexture;
+	
+	stringstream data (stringstream::in | stringstream::out);
+	
+	//std::string data = "";
+	
+	Time worldTime;
+	unsigned int pastTime;
 	
 	SDL_Rect wall;
 	wall.x = 1;
 	wall.y = 700;
 	wall.w = 1500;
 	wall.h = 30;
+	
+	SDL_Rect plat;
+	plat.x = 700;
+	plat.y = 670;
+	plat.w = 800;
+	plat.h = 30;
+	
+	freeFont = TTF_OpenFont("/home/dean/dev/sdl_testing/fonts/font.ttf", 6);
 	
 	//init screen
 	if (!init())
@@ -332,7 +544,13 @@ int main()
 	//game loop
 	while (!quit)
 	{
+		//print cwd
+		printf("#> %s\n", buf);
+		pastTime = worldTime.get(0);
 		//event loop
+		
+		printf("time(ms) : %u\n", worldTime.get(0));
+		
 		while (SDL_PollEvent(&e))
 		{
  			if (e.type == SDL_QUIT)
@@ -341,7 +559,7 @@ int main()
  			}
  			player.handle(e);
 		}
-		player.move(wall);
+		player.move(wall, plat, worldTime, pastTime);
 		
 		//clear screen
 		SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
@@ -351,15 +569,33 @@ int main()
 		SDL_SetRenderDrawColor(renderer, 0xFF, 0x00, 0x00, 0xFF);
 		SDL_RenderDrawRect(renderer, &wall);
 		
+		//plat
+		SDL_SetRenderDrawColor(renderer, 0x00, 0xFF, 0x00, 0xFF);
+		SDL_RenderDrawRect(renderer, &plat);
+		
 		player.render();
+		
+		data << "playerXvel: " << player.playerXvel << " playerYvel: " << player.playerYvel << "\n" << "playerX: " << player.playerX << "playerY: " << player.playerY;
+		
+		
+		if (freeFont == NULL)
+		{
+			printf("FONT FAIL %s\n", TTF_GetError());
+		}
+		else
+		{
+			SDL_Color textColor = {0, 0, 0};
+			if (!textTexture.loadFromRenderedText(data.str(), textColor))
+			{
+				printf("Fail: %s | %s\n", SDL_GetError(), TTF_GetError());
+			}
+		}
 		
 		if (renderer == NULL)
 		{
 			printf("[ERROR] renderer is null%s\n", SDL_GetError());
 			return NULL;
 		}
-		
-		
 	} //end of game loop
 	close();
 	return NULL;
