@@ -12,7 +12,7 @@
 #include <sstream>
 using namespace std; //whatever dude
 //compiler args
-//g++ sdl.cpp -w -std=c++11 -lSDL2_TTF -lSDL2 -lSDL2_image -o sdl
+//g++ sdl.cpp -w -std=c++11 -lSDL2_ttf -lSDL2 -lSDL2_image -o sdl
 
 void handler(int signal)
 {
