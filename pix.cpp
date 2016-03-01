@@ -1,6 +1,5 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
-#include <SDL2/SDL_ttf.h>
 #include <execinfo.h>
 #include <signal.h>
 #include <stdio.h>
@@ -14,7 +13,7 @@
 #include <cstdlib>
 using namespace std; //whatever dude
 //compiler args
-//g++ sdl.cpp -w -std=c++11 -lSDL2_ttf -lSDL2 -lSDL2_image -o sdl
+//g++ sdl.cpp -w -std=c++11 -lSDL2 -lSDL2_image -o sdl
 
 void handler(int signal)
 {
@@ -168,17 +167,19 @@ int main()
 		
 		//iterate thru pixels
 		for (int x = 0; x < SCREEN_W; x++)
-		{	r1 = rand()%256;
-			r2 = rand()%256;
-			r3 = rand()%256;
+		{
 			for (int y = 0; y < SCREEN_H; y++)
 			{
+				
 				r1 = rand()%256;
 				r2 = rand()%256;
 				r3 = rand()%256;
-				SDL_RenderPresent(rend(x, y, 1, 1, r1, r2, r3, 255, renderer));
-			}
+				SDL_SetRenderDrawColor(renderer, r1, r2, r3, 0xFF);
+				SDL_RenderDrawPoint(renderer, x, y);
+			}			
 		}
+
+		SDL_RenderPresent(renderer);
 		
 		if (renderer == NULL)
 		{
