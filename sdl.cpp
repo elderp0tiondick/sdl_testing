@@ -1,5 +1,5 @@
 #include <SDL2/SDL.h>
-#include <SDL/SDL_image.h>
+#include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
 #include <execinfo.h>
 #include <signal.h>
@@ -27,8 +27,8 @@ void handler(int signal)
 }
 
 //window dimensions
-const int SCREEN_W = 1920;
-const int SCREEN_H = 1080;
+const int SCREEN_W = 800;
+const int SCREEN_H = 600;
 const float GRAV = 0.02;
 
 float gravity = 0;
@@ -119,7 +119,7 @@ bool init()
 		}
 		else
 		{
-			renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+			renderer = SDL_CreateRenderer(window, -1, 0);
 			if (renderer == NULL)
 			{
 				printf("renderer fail %s\n", SDL_GetError());
@@ -274,9 +274,10 @@ SDL_Renderer* rend(int x, int y, int w, int h, int r, int g, int b, int a, SDL_R
 	fillRect.y = y;
 	fillRect.w = w;
 	fillRect.h = h;
+	printf("fillrects: x:%d y:%d w:%d h:%d\n", fillRect.x, fillRect.y, fillRect.w, fillRect.h);
 	if (0 > SDL_SetRenderDrawColor(renderer, r, g, b, a))
 	{
-		printf("[ERROR] setrenderdrawcolor failed : %s\n", SDL_GetError());
+		printf("[ERROR] setrezzznderdrawcolor failed : %s\n", SDL_GetError());
 		return NULL;
 	}
 	SDL_RenderFillRect(renderer, &fillRect);
@@ -523,17 +524,17 @@ int main()
 	
 	SDL_Rect wall;
 	wall.x = 1;
-	wall.y = 700;
-	wall.w = 1500;
+	wall.y = 500;
+	wall.w = 700;
 	wall.h = 30;
 	
 	SDL_Rect plat;
-	plat.x = 700;
-	plat.y = 670;
-	plat.w = 800;
+	plat.x = 200;
+	plat.y = 470;
+	plat.w = 500;
 	plat.h = 30;
 	
-	freeFont = TTF_OpenFont("/home/dean/dev/sdl_testing/fonts/font.ttf", 6);
+	//freeFont = TTF_OpenFont("/home/dean/dev/sdl_testing/fonts/font.ttf", 6);
 	
 	//init screen
 	if (!init())
